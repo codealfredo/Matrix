@@ -56,7 +56,8 @@ const server = http.createServer((req, res) => {
   }
 
   // Serve static assets
-  let reqPath = req.url === '/' ? '/index.html' : req.url;
+  let urlPath = req.url.split('?')[0];
+  let reqPath = urlPath === '/' ? '/index.html' : urlPath;
   // Prevent directory traversal attacks
   let safePath = path.normalize(reqPath).replace(/^(\.\.[\/\\])+/, '');
   let filePath = path.join(__dirname, safePath);

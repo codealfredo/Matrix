@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Matrix - Rompecabezas de Vida</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
 </head>
 
 <body data-theme="slate">
@@ -24,6 +24,14 @@
           <h1 class="app-title">STRAIN</h1>
         </div>
         <p class="app-subtitle">Rompecabezas de Vida</p>
+        <div class="view-tabs">
+          <button class="view-tab-btn active" id="btnViewMatrix" onclick="switchView('matrix')" title="Vista Matriz">
+            <span id="matrixIconSpan"></span> Matriz
+          </button>
+          <button class="view-tab-btn" id="btnViewCalendar" onclick="switchView('calendar')" title="Rutina Semanal">
+            <span id="calendarIconSpan"></span> Calendario
+          </button>
+        </div>
       </div>
 
       <!-- Sección Banco de Piezas Sueltas -->
@@ -79,6 +87,7 @@
           <button class="theme-btn" data-select-theme="light" title="Minimalist Light"></button>
           <button class="theme-btn" data-select-theme="mint" title="Day Mint"></button>
           <button class="theme-btn" data-select-theme="night-mint" title="Night Mint"></button>
+          <button class="theme-btn" data-select-theme="twilight" title="Twilight Dim"></button>
         </div>
       </div>
     </aside>
@@ -92,7 +101,7 @@
           <p class="canvas-desc">Conecta y acopla tus hábitos y reglas para estructurar tu matriz de vida.</p>
         </div>
         <div class="canvas-actions">
-          <button class="btn-primary" id="btnOpenNewThemeModal">
+          <button class="btn-primary" id="btnOpenNewThemeModal" onclick="openThemeModal('create')">
             <span id="plusIconSpan"></span>
             Nueva Temática
           </button>
@@ -179,8 +188,8 @@
   </div>
 
   <!-- Scripts de la aplicación -->
-  <script src="icons.js"></script>
-  <script src="app.js"></script>
+  <script src="icons.js?v=2"></script>
+  <script src="app.js?v=2"></script>
 </body>
 
 </html>

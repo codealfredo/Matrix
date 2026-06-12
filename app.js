@@ -7,6 +7,9 @@ let state = {
   unassignedPieces: []
 };
 
+let activeDragType = null; // 'piece' o 'theme'
+let activeThemeId = null;
+
 // --- ESTRUCTURAS PREDEFINIDAS (DE DEMOSTRACIÓN) ---
 const DEFAULT_TEMATICAS = [
   {
@@ -94,6 +97,11 @@ function initStaticIcons() {
   document.getElementById('addIconSpan').innerHTML = window.getIconSvg('plus', 14);
   btnCloseThemeModal.innerHTML = window.getIconSvg('x', 20);
   btnClosePieceModal.innerHTML = window.getIconSvg('x', 20);
+
+  const matrixIconSpan = document.getElementById('matrixIconSpan');
+  const calendarIconSpan = document.getElementById('calendarIconSpan');
+  if (matrixIconSpan) matrixIconSpan.innerHTML = window.getIconSvg('target', 14);
+  if (calendarIconSpan) calendarIconSpan.innerHTML = window.getIconSvg('calendar', 14);
 }
 
 // --- DETECCION DE MODO (SERVIDOR VS LOCAL FILE) ---
@@ -128,6 +136,23 @@ function saveToServer() {
   });
 }
 
+function ensureStateDefaults() {
+  if (!state.activeView) {
+    state.activeView = 'matrix';
+  }
+  if (!state.weeklyRoutine) {
+    state.weeklyRoutine = {
+      lunes: [],
+      martes: [],
+      miercoles: [],
+      jueves: [],
+      viernes: [],
+      sabado: [],
+      domingo: []
+    };
+  }
+}
+
 function loadFromLocalStorage() {
   const data = localStorage.getItem('matrix_puzzle_state');
   if (data) {
@@ -145,6 +170,7 @@ function loadFromLocalStorage() {
     };
     saveToLocalStorage();
   }
+  ensureStateDefaults();
 }
 
 function loadFromServer(callback) {
@@ -162,6 +188,7 @@ function loadFromServer(callback) {
         };
         saveToServer();
       }
+      ensureStateDefaults();
       callback();
     })
     .catch(err => {
@@ -201,8 +228,29 @@ function applyTheme(themeName) {
 
 // --- RENDERIZADO GLOBAL ---
 function renderAll() {
+  // Sincronizar clases activas de pestañas de vista
+  const btnViewMatrix = document.getElementById('btnViewMatrix');
+  const btnViewCalendar = document.getElementById('btnViewCalendar');
+  if (btnViewMatrix && btnViewCalendar) {
+    if (state.activeView === 'matrix') {
+      btnViewMatrix.classList.add('active');
+      btnViewCalendar.classList.remove('active');
+    } else {
+      btnViewMatrix.classList.remove('active');
+      btnViewCalendar.classList.add('active');
+    }
+  }
+
   renderUnassignedPieces();
-  renderCanvasBoard();
+  
+  if (state.activeView === 'matrix') {
+    canvasBoard.classList.remove('kanban-view-active');
+    renderCanvasBoard();
+  } else {
+    renderCalendarBoard();
+  }
+  
+  adjustPieceFontSizes();
 }
 
 // --- RENDERIZADO DEL BANCO DE PIEZAS SUELTAS ---
@@ -237,12 +285,15 @@ function renderUnassignedPieces() {
 
     // Eventos Drag
     pieceEl.addEventListener('dragstart', (e) => {
+      e.stopPropagation();
+      activeDragType = 'piece';
       e.dataTransfer.setData('text/plain', item.id);
       e.dataTransfer.setData('source-theme', 'unassigned');
       pieceEl.classList.add('dragging');
     });
 
     pieceEl.addEventListener('dragend', () => {
+      activeDragType = null;
       pieceEl.classList.remove('dragging');
     });
 
@@ -257,11 +308,94 @@ function renderUnassignedPieces() {
   });
 }
 
+// --- ACTUALIZACIÓN DE LA CABECERA DEL LIENZO ---
+function updateCanvasHeader() {
+  const canvasTitle = document.querySelector('.canvas-title');
+  const canvasDesc = document.querySelector('.canvas-desc');
+  const canvasActions = document.querySelector('.canvas-actions');
+  
+  if (!canvasTitle || !canvasDesc || !canvasActions) return;
+  
+  if (activeThemeId) {
+    const activeTheme = state.tematicas.find(t => t.id === activeThemeId);
+    if (activeTheme) {
+      canvasTitle.textContent = activeTheme.title;
+      canvasDesc.textContent = activeTheme.desc || 'Sin descripción.';
+      canvasActions.innerHTML = `
+        <button class="btn-secondary" id="btnBackToBoard" onclick="exitThemeFullPage()">
+          ${window.getIconSvg('arrowLeft', 14)}
+          Volver al Tablero
+        </button>
+      `;
+      return;
+    }
+  }
+  
+  // Estado por defecto
+  canvasTitle.textContent = 'Mi Vida';
+  canvasDesc.textContent = 'Conecta y acopla tus hábitos y reglas para estructurar tu matriz de vida.';
+  canvasActions.innerHTML = `
+    <button class="btn-primary" id="btnOpenNewThemeModal" onclick="openThemeModal('create')">
+      ${window.getIconSvg('plus', 16)}
+      Nueva Temática
+    </button>
+  `;
+}
+
+// --- CONTROLES DE PANTALLA COMPLETA ---
+window.viewThemeFullPage = function(themeId) {
+  activeThemeId = themeId;
+  renderAll();
+};
+
+window.exitThemeFullPage = function() {
+  activeThemeId = null;
+  renderAll();
+};
+
+// --- AJUSTE AUTOMÁTICO DE TAMAÑO DE FUENTE EN PIEZAS ---
+function adjustPieceFontSizes() {
+  const pieces = document.querySelectorAll('.puzzle-piece');
+  pieces.forEach(pieceEl => {
+    if (pieceEl.closest('.sidebar') || pieceEl.closest('.kanban-column-list')) {
+      const textSpan = pieceEl.querySelector('.puzzle-piece-text');
+      if (textSpan) textSpan.style.fontSize = '';
+      return;
+    }
+    
+    const textSpan = pieceEl.querySelector('.puzzle-piece-text');
+    if (!textSpan) return;
+    
+    let fontSize = 14.4; // Base ~0.9rem
+    textSpan.style.fontSize = `${fontSize}px`;
+    
+    // Altura máxima disponible de la pieza (70px alto - 16px padding = 54px, seguridad a 46px)
+    const maxHeight = 46;
+    
+    let iterations = 0;
+    while (textSpan.offsetHeight > maxHeight && fontSize > 8.5 && iterations < 15) {
+      fontSize -= 0.5;
+      textSpan.style.fontSize = `${fontSize}px`;
+      iterations++;
+    }
+  });
+}
+
 // --- RENDERIZADO DEL LIENZO PRINCIPAL (Temáticas y Puzzle Lanes) ---
 function renderCanvasBoard() {
+  updateCanvasHeader();
   canvasBoard.innerHTML = '';
 
-  if (state.tematicas.length === 0) {
+  const themesToRender = activeThemeId
+    ? state.tematicas.filter(t => t.id === activeThemeId)
+    : state.tematicas;
+
+  if (themesToRender.length === 0) {
+    if (activeThemeId) {
+      activeThemeId = null;
+      updateCanvasHeader();
+    }
+    
     canvasBoard.innerHTML = `
       <div style="text-align: center; padding: 4rem; color: var(--text-secondary); grid-column: 1/-1;">
         <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🧩</div>
@@ -272,12 +406,19 @@ function renderCanvasBoard() {
     return;
   }
 
-  state.tematicas.forEach(tematica => {
+  themesToRender.forEach(tematica => {
     const laneCard = document.createElement('section');
-    laneCard.className = 'tematica-lane';
+    laneCard.className = `tematica-lane ${activeThemeId ? 'maximized' : ''}`;
     laneCard.setAttribute('data-theme-id', tematica.id);
     
     // Header de la Temática
+    const isFullPage = activeThemeId === tematica.id;
+    const maximizeButtonHtml = isFullPage ? '' : `
+      <button class="btn-secondary" onclick="viewThemeFullPage('${tematica.id}')" title="Abrir en pantalla completa">
+        ${window.getIconSvg('maximize', 14)}
+      </button>
+    `;
+
     let headerHtml = `
       <div class="tematica-header">
         <div class="tematica-info">
@@ -288,6 +429,7 @@ function renderCanvasBoard() {
           </div>
         </div>
         <div class="tematica-actions">
+          ${maximizeButtonHtml}
           <button class="btn-secondary" onclick="openThemeModal('edit', '${tematica.id}')" title="Editar Temática">
             ${window.getIconSvg('edit', 14)}
           </button>
@@ -364,27 +506,75 @@ function renderCanvasBoard() {
 
     canvasBoard.appendChild(laneCard);
 
+    // Hacer la temática draggable
+    laneCard.setAttribute('draggable', 'true');
+
+    laneCard.addEventListener('dragstart', (e) => {
+      // Si se arrastra desde los botones de acción o el carril del puzzle, no arrastrar la temática
+      if (e.target.closest('.tematica-actions') || e.target.closest('.puzzle-lane-wrapper') || e.target.closest('button') || e.target.closest('.puzzle-piece')) {
+        e.preventDefault();
+        return;
+      }
+      activeDragType = 'theme';
+      e.dataTransfer.setData('text/plain', tematica.id);
+      laneCard.classList.add('dragging-theme');
+    });
+
+    laneCard.addEventListener('dragend', () => {
+      activeDragType = null;
+      laneCard.classList.remove('dragging-theme');
+    });
+
+    laneCard.addEventListener('dragover', (e) => {
+      if (activeDragType !== 'theme') return;
+      e.preventDefault();
+    });
+
+    laneCard.addEventListener('dragenter', (e) => {
+      if (activeDragType !== 'theme') return;
+      e.preventDefault();
+      laneCard.classList.add('drag-over-theme');
+    });
+
+    laneCard.addEventListener('dragleave', () => {
+      if (activeDragType !== 'theme') return;
+      laneCard.classList.remove('drag-over-theme');
+    });
+
+    laneCard.addEventListener('drop', (e) => {
+      if (activeDragType !== 'theme') return;
+      e.preventDefault();
+      laneCard.classList.remove('drag-over-theme');
+      const draggedThemeId = e.dataTransfer.getData('text/plain');
+      reorderThemes(draggedThemeId, tematica.id);
+    });
+
     // Vincular eventos Drag & Drop para cada pieza de la temática (reordenamiento o inserción)
     const pieces = laneCard.querySelectorAll('.puzzle-lane .puzzle-piece');
     pieces.forEach((pieceEl, idx) => {
       const item = items[idx];
       
       pieceEl.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        activeDragType = 'piece';
         e.dataTransfer.setData('text/plain', item.id);
         e.dataTransfer.setData('source-theme', tematica.id);
         pieceEl.classList.add('dragging');
       });
 
       pieceEl.addEventListener('dragend', () => {
+        activeDragType = null;
         pieceEl.classList.remove('dragging');
       });
 
       pieceEl.addEventListener('dragover', (e) => {
+        if (activeDragType === 'theme') return;
         e.preventDefault();
         e.stopPropagation();
       });
 
       pieceEl.addEventListener('drop', (e) => {
+        if (activeDragType === 'theme') return;
         e.preventDefault();
         e.stopPropagation();
         const draggedId = e.dataTransfer.getData('text/plain');
@@ -397,19 +587,23 @@ function renderCanvasBoard() {
     const laneEl = laneCard.querySelector('.puzzle-lane');
     
     laneEl.addEventListener('dragover', (e) => {
+      if (activeDragType === 'theme') return;
       e.preventDefault();
     });
 
     laneEl.addEventListener('dragenter', (e) => {
+      if (activeDragType === 'theme') return;
       e.preventDefault();
       laneEl.classList.add('drag-over');
     });
 
     laneEl.addEventListener('dragleave', () => {
+      if (activeDragType === 'theme') return;
       laneEl.classList.remove('drag-over');
     });
 
     laneEl.addEventListener('drop', (e) => {
+      if (activeDragType === 'theme') return;
       e.preventDefault();
       laneEl.classList.remove('drag-over');
       const draggedId = e.dataTransfer.getData('text/plain');
@@ -422,6 +616,226 @@ function renderCanvasBoard() {
     });
   });
 }
+
+// --- VISTA CALENDARIO: CAMBIO DE VISTA ---
+window.switchView = function(viewName) {
+  state.activeView = viewName;
+  saveToLocalStorage();
+  renderAll();
+};
+
+const DAYS_OF_WEEK = {
+  lunes: 'lunes',
+  martes: 'martes',
+  miercoles: 'miércoles',
+  jueves: 'jueves',
+  viernes: 'viernes',
+  sabado: 'sábado',
+  domingo: 'domingo'
+};
+
+// --- RENDERIZADO DEL TABLERO DE RUTINA SEMANAL (KANBAN) ---
+function renderCalendarBoard() {
+  const canvasTitle = document.querySelector('.canvas-title');
+  const canvasDesc = document.querySelector('.canvas-desc');
+  const canvasActions = document.querySelector('.canvas-actions');
+  
+  if (canvasTitle) canvasTitle.textContent = 'Rutina Semanal';
+  if (canvasDesc) canvasDesc.textContent = 'Organiza tus hábitos y tareas diarias en un tablero Kanban semanal.';
+  if (canvasActions) canvasActions.innerHTML = '';
+  
+  canvasBoard.classList.add('kanban-view-active');
+  canvasBoard.innerHTML = '';
+  
+  const boardEl = document.createElement('div');
+  boardEl.className = 'kanban-board';
+  
+  Object.keys(DAYS_OF_WEEK).forEach(dayKey => {
+    const dayName = DAYS_OF_WEEK[dayKey];
+    const columnEl = document.createElement('div');
+    columnEl.className = 'kanban-column';
+    columnEl.setAttribute('data-day', dayKey);
+    
+    const items = state.weeklyRoutine[dayKey] || [];
+    const itemsCount = items.length;
+    
+    columnEl.innerHTML = `
+      <div class="kanban-column-header">
+        <span>${dayName}</span>
+        <span style="font-size: 0.8rem; opacity: 0.6; font-weight: normal;">${itemsCount}</span>
+      </div>
+      <div class="kanban-column-list" id="list-${dayKey}"></div>
+      <div class="kanban-creator-container" id="creator-container-${dayKey}">
+        <button class="btn-add-kanban" onclick="showKanbanCreator('${dayKey}')">
+          ${window.getIconSvg('plus', 14)} Añadir pieza
+        </button>
+      </div>
+    `;
+    
+    const listEl = columnEl.querySelector('.kanban-column-list');
+    
+    if (items.length === 0) {
+      listEl.innerHTML = `<div style="text-align: center; padding: 1.5rem; font-size: 0.8rem; color: var(--text-secondary); opacity: 0.5; border: 1px dashed var(--border-color); border-radius: var(--border-radius-sm);">Vacío. Arrastra piezas aquí.</div>`;
+    } else {
+      items.forEach((item, index) => {
+        const pieceEl = document.createElement('div');
+        pieceEl.className = `puzzle-piece ${item.important ? 'important' : ''}`;
+        pieceEl.setAttribute('data-id', item.id);
+        pieceEl.setAttribute('draggable', 'true');
+        
+        pieceEl.innerHTML = `
+          <div class="puzzle-piece-content">
+            <span class="puzzle-piece-text" id="text-${item.id}">${escapeHtml(item.text)}</span>
+            <div class="piece-actions">
+              <button class="btn-piece-tool ${item.important ? 'active' : ''}" onclick="event.stopPropagation(); togglePieceImportant('${item.id}', '${dayKey}')" title="Importante">
+                ${window.getIconSvg('star', 12)}
+              </button>
+              <button class="btn-piece-tool" onclick="event.stopPropagation(); startEditPiece('${item.id}', '${dayKey}')" title="Editar">
+                ${window.getIconSvg('edit', 12)}
+              </button>
+              <button class="btn-piece-tool" onclick="event.stopPropagation(); deletePiece('${item.id}', '${dayKey}')" title="Eliminar">
+                ${window.getIconSvg('trash', 12)}
+              </button>
+            </div>
+          </div>
+        `;
+        
+        // Eventos Drag
+        pieceEl.addEventListener('dragstart', (e) => {
+          e.stopPropagation();
+          activeDragType = 'piece';
+          e.dataTransfer.setData('text/plain', item.id);
+          e.dataTransfer.setData('source-theme', dayKey);
+          pieceEl.classList.add('dragging');
+        });
+        
+        pieceEl.addEventListener('dragend', () => {
+          activeDragType = null;
+          pieceEl.classList.remove('dragging');
+        });
+        
+        // Vincular eventos de reordenación de piezas dentro de la columna
+        pieceEl.addEventListener('dragover', (e) => {
+          if (activeDragType === 'theme') return;
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        
+        pieceEl.addEventListener('drop', (e) => {
+          if (activeDragType === 'theme') return;
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const draggedId = e.dataTransfer.getData('text/plain');
+          const sourceThemeId = e.dataTransfer.getData('source-theme');
+          window.movePieceToPosition(draggedId, sourceThemeId, dayKey, index);
+        });
+        
+        listEl.appendChild(pieceEl);
+      });
+    }
+    
+    // Drag & Drop para la columna (añadir al final)
+    listEl.addEventListener('dragover', (e) => {
+      if (activeDragType === 'theme') return;
+      e.preventDefault();
+    });
+    
+    listEl.addEventListener('dragenter', (e) => {
+      if (activeDragType === 'theme') return;
+      e.preventDefault();
+      listEl.classList.add('drag-over');
+    });
+    
+    listEl.addEventListener('dragleave', () => {
+      if (activeDragType === 'theme') return;
+      listEl.classList.remove('drag-over');
+    });
+    
+    listEl.addEventListener('drop', (e) => {
+      if (activeDragType === 'theme') return;
+      e.preventDefault();
+      listEl.classList.remove('drag-over');
+      
+      const draggedId = e.dataTransfer.getData('text/plain');
+      const sourceThemeId = e.dataTransfer.getData('source-theme');
+      
+      // Si se suelta en la lista (vacía o espacio libre), añadir al final
+      if (e.target === listEl || e.target.closest('.kanban-column-list') === listEl) {
+        window.movePiece(draggedId, sourceThemeId, dayKey);
+      }
+    });
+    
+    boardEl.appendChild(columnEl);
+  });
+  
+  canvasBoard.appendChild(boardEl);
+}
+
+// --- CONTROLES DE CREACIÓN INLINE EN KANBAN ---
+window.showKanbanCreator = function(dayKey) {
+  const container = document.getElementById(`creator-container-${dayKey}`);
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="kanban-inline-creator">
+      <textarea class="kanban-inline-input" id="input-kanban-${dayKey}" placeholder="Nueva tarea para este día..." required autocomplete="off" rows="2"></textarea>
+      <div class="kanban-inline-actions">
+        <button class="btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="cancelKanbanCreator('${dayKey}')">Cancelar</button>
+        <button class="btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="saveKanbanPiece('${dayKey}')">Añadir</button>
+      </div>
+    </div>
+  `;
+  
+  const textarea = document.getElementById(`input-kanban-${dayKey}`);
+  if (textarea) {
+    textarea.focus();
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        saveKanbanPiece(dayKey);
+      } else if (e.key === 'Escape') {
+        cancelKanbanCreator(dayKey);
+      }
+    });
+  }
+};
+
+window.cancelKanbanCreator = function(dayKey) {
+  const container = document.getElementById(`creator-container-${dayKey}`);
+  if (!container) return;
+  
+  container.innerHTML = `
+    <button class="btn-add-kanban" onclick="showKanbanCreator('${dayKey}')">
+      ${window.getIconSvg('plus', 14)} Añadir pieza
+    </button>
+  `;
+};
+
+window.saveKanbanPiece = function(dayKey) {
+  const input = document.getElementById(`input-kanban-${dayKey}`);
+  if (!input) return;
+  
+  const text = input.value.trim();
+  if (!text) {
+    cancelKanbanCreator(dayKey);
+    return;
+  }
+  
+  const newPiece = {
+    id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    text: text,
+    important: false
+  };
+  
+  if (!state.weeklyRoutine[dayKey]) {
+    state.weeklyRoutine[dayKey] = [];
+  }
+  
+  state.weeklyRoutine[dayKey].push(newPiece);
+  saveToLocalStorage();
+  renderAll();
+};
 
 // --- CREAR / ELIMINAR PIEZAS (BANCO DE IDEAS) ---
 quickAddPieceForm.addEventListener('submit', (e) => {
@@ -448,9 +862,13 @@ window.startEditPiece = function(itemId, themeId) {
   if (!themeId || themeId === 'null') {
     piece = state.unassignedPieces.find(p => p.id === itemId);
   } else {
-    const theme = state.tematicas.find(t => t.id === themeId);
-    if (theme) {
-      piece = theme.items.find(i => i.id === itemId);
+    if (state.weeklyRoutine && state.weeklyRoutine[themeId]) {
+      piece = state.weeklyRoutine[themeId].find(p => p.id === itemId);
+    } else {
+      const theme = state.tematicas.find(t => t.id === themeId);
+      if (theme) {
+        piece = theme.items.find(i => i.id === itemId);
+      }
     }
   }
 
@@ -480,9 +898,13 @@ window.deletePiece = function(itemId, themeId) {
   if (!themeId || themeId === 'null') {
     state.unassignedPieces = state.unassignedPieces.filter(p => p.id !== itemId);
   } else {
-    const theme = state.tematicas.find(t => t.id === themeId);
-    if (theme) {
-      theme.items = theme.items.filter(i => i.id !== itemId);
+    if (state.weeklyRoutine && state.weeklyRoutine[themeId]) {
+      state.weeklyRoutine[themeId] = state.weeklyRoutine[themeId].filter(p => p.id !== itemId);
+    } else {
+      const theme = state.tematicas.find(t => t.id === themeId);
+      if (theme) {
+        theme.items = theme.items.filter(i => i.id !== itemId);
+      }
     }
   }
 
@@ -496,9 +918,13 @@ window.togglePieceImportant = function(itemId, themeId) {
   if (!themeId || themeId === 'null') {
     piece = state.unassignedPieces.find(p => p.id === itemId);
   } else {
-    const theme = state.tematicas.find(t => t.id === themeId);
-    if (theme) {
-      piece = theme.items.find(i => i.id === itemId);
+    if (state.weeklyRoutine && state.weeklyRoutine[themeId]) {
+      piece = state.weeklyRoutine[themeId].find(p => p.id === itemId);
+    } else {
+      const theme = state.tematicas.find(t => t.id === themeId);
+      if (theme) {
+        piece = theme.items.find(i => i.id === itemId);
+      }
     }
   }
 
@@ -510,7 +936,7 @@ window.togglePieceImportant = function(itemId, themeId) {
 };
 
 // --- GESTIÓN DE MODALES DE TEMÁTICAS ---
-function openThemeModal(mode = 'create', id = null) {
+window.openThemeModal = function(mode = 'create', id = null) {
   themeFormMode.value = mode;
   themeFormId.value = id || '';
 
@@ -672,6 +1098,11 @@ window.movePiece = function(itemId, fromThemeId, toThemeId) {
     if (index !== -1) {
       piece = state.unassignedPieces.splice(index, 1)[0];
     }
+  } else if (state.weeklyRoutine && state.weeklyRoutine[fromThemeId]) {
+    const index = state.weeklyRoutine[fromThemeId].findIndex(p => p.id === itemId);
+    if (index !== -1) {
+      piece = state.weeklyRoutine[fromThemeId].splice(index, 1)[0];
+    }
   } else {
     const theme = state.tematicas.find(t => t.id === fromThemeId);
     if (theme) {
@@ -690,6 +1121,9 @@ window.movePiece = function(itemId, fromThemeId, toThemeId) {
   // Añadir a destino
   if (!toThemeId || toThemeId === 'null') {
     state.unassignedPieces.push(piece);
+  } else if (state.weeklyRoutine && state.weeklyRoutine[toThemeId]) {
+    if (!state.weeklyRoutine[toThemeId]) state.weeklyRoutine[toThemeId] = [];
+    state.weeklyRoutine[toThemeId].push(piece);
   } else {
     const theme = state.tematicas.find(t => t.id === toThemeId);
     if (theme) {
@@ -713,6 +1147,11 @@ window.movePieceToPosition = function(itemId, fromThemeId, toThemeId, targetInde
     if (index !== -1) {
       piece = state.unassignedPieces.splice(index, 1)[0];
     }
+  } else if (state.weeklyRoutine && state.weeklyRoutine[fromThemeId]) {
+    const index = state.weeklyRoutine[fromThemeId].findIndex(p => p.id === itemId);
+    if (index !== -1) {
+      piece = state.weeklyRoutine[fromThemeId].splice(index, 1)[0];
+    }
   } else {
     const theme = state.tematicas.find(t => t.id === fromThemeId);
     if (theme) {
@@ -728,6 +1167,9 @@ window.movePieceToPosition = function(itemId, fromThemeId, toThemeId, targetInde
   // Añadir a destino en posición específica
   if (!toThemeId || toThemeId === 'null' || toThemeId === 'unassigned') {
     state.unassignedPieces.push(piece);
+  } else if (state.weeklyRoutine && state.weeklyRoutine[toThemeId]) {
+    if (!state.weeklyRoutine[toThemeId]) state.weeklyRoutine[toThemeId] = [];
+    state.weeklyRoutine[toThemeId].splice(targetIndex, 0, piece);
   } else {
     const theme = state.tematicas.find(t => t.id === toThemeId);
     if (theme) {
@@ -736,6 +1178,20 @@ window.movePieceToPosition = function(itemId, fromThemeId, toThemeId, targetInde
       theme.items.splice(targetIndex, 0, piece);
     }
   }
+
+  saveToLocalStorage();
+  renderAll();
+};
+
+// --- REORDENAR TEMÁTICAS (DRAG & DROP) ---
+window.reorderThemes = function(draggedThemeId, targetThemeId) {
+  if (draggedThemeId === targetThemeId) return;
+  const fromIndex = state.tematicas.findIndex(t => t.id === draggedThemeId);
+  const toIndex = state.tematicas.findIndex(t => t.id === targetThemeId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const [removed] = state.tematicas.splice(fromIndex, 1);
+  state.tematicas.splice(toIndex, 0, removed);
 
   saveToLocalStorage();
   renderAll();
@@ -759,7 +1215,6 @@ window.movePieceOrder = function(themeId, currentIndex, direction) {
 };
 
 // --- EVENT LISTENERS GENERALES ---
-btnOpenNewThemeModal.addEventListener('click', () => openThemeModal('create'));
 btnCloseThemeModal.addEventListener('click', closeThemeModal);
 btnCancelThemeForm.addEventListener('click', closeThemeModal);
 
@@ -792,9 +1247,13 @@ pieceForm.addEventListener('submit', (e) => {
   if (!themeId || themeId === 'null') {
     piece = state.unassignedPieces.find(p => p.id === itemId);
   } else {
-    const theme = state.tematicas.find(t => t.id === themeId);
-    if (theme) {
-      piece = theme.items.find(i => i.id === itemId);
+    if (state.weeklyRoutine && state.weeklyRoutine[themeId]) {
+      piece = state.weeklyRoutine[themeId].find(p => p.id === itemId);
+    } else {
+      const theme = state.tematicas.find(t => t.id === themeId);
+      if (theme) {
+        piece = theme.items.find(i => i.id === itemId);
+      }
     }
   }
 
@@ -873,19 +1332,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Vincular eventos Drag & Drop al contenedor del banco de piezas (desconexión)
   unassignedPiecesContainer.addEventListener('dragover', (e) => {
+    if (activeDragType === 'theme') return;
     e.preventDefault();
   });
 
   unassignedPiecesContainer.addEventListener('dragenter', (e) => {
+    if (activeDragType === 'theme') return;
     e.preventDefault();
     unassignedPiecesContainer.classList.add('drag-over');
   });
 
   unassignedPiecesContainer.addEventListener('dragleave', () => {
+    if (activeDragType === 'theme') return;
     unassignedPiecesContainer.classList.remove('drag-over');
   });
 
   unassignedPiecesContainer.addEventListener('drop', (e) => {
+    if (activeDragType === 'theme') return;
     e.preventDefault();
     unassignedPiecesContainer.classList.remove('drag-over');
     const draggedId = e.dataTransfer.getData('text/plain');
@@ -911,4 +1374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(state.theme);
     renderAll();
   }
+
+  // Escuchar redimensionamiento para ajustar tamaño de fuente de las piezas
+  window.addEventListener('resize', adjustPieceFontSizes);
 });
