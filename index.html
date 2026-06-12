@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix - Rompecabezas de Vida</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body data-theme="slate">
+  <div class="app-container">
+    <!-- Fondos de iluminación ambiental -->
+    <div class="background-blob blob-1" id="blob1"></div>
+    <div class="background-blob blob-2" id="blob2"></div>
+
+    <!-- PANEL LATERAL (Sidebar / Banco de Piezas) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <div class="logo-icon" id="logoIcon">
+            <!-- Icono cargado dinámicamente -->
+          </div>
+          <h1 class="app-title">STRAIN</h1>
+        </div>
+        <p class="app-subtitle">Rompecabezas de Vida</p>
+      </div>
+
+      <!-- Sección Banco de Piezas Sueltas -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <h3 class="section-title">Banco de Piezas</h3>
+        </div>
+        <div class="ideas-container" id="unassignedPiecesContainer">
+          <!-- Piezas sueltas inyectadas por JS -->
+        </div>
+
+        <!-- Creador rápido de piezas -->
+        <div class="idea-creator">
+          <form class="idea-form" id="quickAddPieceForm">
+            <input type="text" class="input-text" id="newPieceTextInput" placeholder="Nueva pieza de hábito/regla..."
+              required autocomplete="off">
+            <button type="submit" class="btn-primary" id="btnAddPiece" title="Añadir pieza al banco">
+              <span id="addIconSpan"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Sección Respaldo Local (Ocultable si está en Servidor) -->
+      <div class="sidebar-section" id="backupSection" style="flex: 0 0 auto; min-height: 0; margin-bottom: 1.5rem;">
+        <div class="section-header">
+          <h3 class="section-title">Respaldo Local</h3>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <button class="btn-secondary" id="btnExportJson"
+            style="padding: 0.5rem; font-size: 0.8rem; justify-content: center;"
+            title="Descargar datos como archivo JSON">
+            Exportar
+          </button>
+          <button class="btn-secondary" id="btnImportJson"
+            style="padding: 0.5rem; font-size: 0.8rem; justify-content: center;"
+            title="Subir datos desde un archivo JSON">
+            Importar
+          </button>
+          <input type="file" id="importJsonInput" accept=".json" style="display: none;">
+        </div>
+      </div>
+
+      <!-- Footer Selector de Temas -->
+      <div class="sidebar-footer">
+        <span class="theme-selector-label">Temas de Color</span>
+        <div class="theme-options">
+          <button class="theme-btn active" data-select-theme="slate" title="Dark Slate"></button>
+          <button class="theme-btn" data-select-theme="forest" title="Forest Sanctuary"></button>
+          <button class="theme-btn" data-select-theme="frost" title="Nordic Frost"></button>
+          <button class="theme-btn" data-select-theme="sakura" title="Sakura Blossom"></button>
+          <button class="theme-btn" data-select-theme="amber" title="Amber Sunset"></button>
+          <button class="theme-btn" data-select-theme="light" title="Minimalist Light"></button>
+          <button class="theme-btn" data-select-theme="mint" title="Day Mint"></button>
+          <button class="theme-btn" data-select-theme="night-mint" title="Night Mint"></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- EL LIENZO PRINCIPAL (Workspace Canvas) -->
+    <main class="main-content">
+      <!-- Cabecera del Lienzo -->
+      <header class="canvas-header">
+        <div>
+          <h2 class="canvas-title">Mi Vida</h2>
+          <p class="canvas-desc">Conecta y acopla tus hábitos y reglas para estructurar tu matriz de vida.</p>
+        </div>
+        <div class="canvas-actions">
+          <button class="btn-primary" id="btnOpenNewThemeModal">
+            <span id="plusIconSpan"></span>
+            Nueva Temática
+          </button>
+        </div>
+      </header>
+
+      <!-- El Tablero de Conexiones -->
+      <div class="canvas-board" id="canvasBoard">
+        <!-- Carriles de temáticas inyectados dinámicamente -->
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: CREAR / EDITAR TEMÁTICA -->
+  <div class="modal-backdrop" id="themeModalBackdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="themeModalTitle">Nueva Temática</h3>
+        <button class="modal-close" id="btnCloseThemeModal" type="button">
+          <!-- Icono X -->
+        </button>
+      </div>
+      <form id="themeForm">
+        <input type="hidden" id="themeFormMode" value="create"> <!-- create o edit -->
+        <input type="hidden" id="themeFormId" value="">
+
+        <div class="form-group">
+          <label class="form-label" for="themeNameInput">Nombre de la Temática</label>
+          <input type="text" class="input-text" id="themeNameInput"
+            placeholder="Ej. Alimentación Consciente, Finanzas Fuertes..." required autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="themeDescInput">Descripción (Opcional)</label>
+          <input type="text" class="input-text" id="themeDescInput"
+            placeholder="Ej. Pautas de salud o rutinas a cumplir..." autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Selecciona un Icono</label>
+          <div class="select-icon-grid" id="iconSelectionGrid">
+            <!-- Iconos de selección por JS -->
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelThemeForm">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btnSubmitThemeForm">Guardar Temática</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR PIEZA -->
+  <div class="modal-backdrop" id="pieceModalBackdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Pieza</h3>
+        <button class="modal-close" id="btnClosePieceModal" type="button">
+          <!-- Icono X -->
+        </button>
+      </div>
+      <form id="pieceForm">
+        <input type="hidden" id="pieceFormId" value="">
+        <input type="hidden" id="pieceFormThemeId" value="">
+
+        <div class="form-group">
+          <label class="form-label" for="pieceTextInput">Contenido de la Pieza</label>
+          <input type="text" class="input-text" id="pieceTextInput" placeholder="Ej. Meditar 10 minutos..." required
+            autocomplete="off">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelPieceForm">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btnSubmitPieceForm">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Menú Contextual Flotante de Conexiones -->
+  <div class="connector-menu" id="connectorMenu" style="display: none;">
+    <!-- Opciones inyectadas por JS -->
+  </div>
+
+  <!-- Scripts de la aplicación -->
+  <script src="icons.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
