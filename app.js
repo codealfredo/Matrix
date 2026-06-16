@@ -90,6 +90,11 @@ const pieceTextInput = document.getElementById('pieceTextInput');
 const btnClosePieceModal = document.getElementById('btnClosePieceModal');
 const btnCancelPieceForm = document.getElementById('btnCancelPieceForm');
 
+const customDialogBackdrop = document.getElementById('customDialogBackdrop');
+const btnCloseCustomDialog = document.getElementById('btnCloseCustomDialog');
+const btnCancelCustomDialog = document.getElementById('btnCancelCustomDialog');
+const btnConfirmCustomDialog = document.getElementById('btnConfirmCustomDialog');
+
 // --- CARGAR ICONOS ESTÁTICOS ---
 function initStaticIcons() {
   document.getElementById('logoIcon').innerHTML = window.getIconSvg('target', 24);
@@ -97,6 +102,7 @@ function initStaticIcons() {
   document.getElementById('addIconSpan').innerHTML = window.getIconSvg('plus', 14);
   btnCloseThemeModal.innerHTML = window.getIconSvg('x', 20);
   btnClosePieceModal.innerHTML = window.getIconSvg('x', 20);
+  if (btnCloseCustomDialog) btnCloseCustomDialog.innerHTML = window.getIconSvg('x', 20);
 
   const matrixIconSpan = document.getElementById('matrixIconSpan');
   const calendarIconSpan = document.getElementById('calendarIconSpan');
@@ -683,9 +689,19 @@ function renderCalendarBoard() {
         pieceEl.setAttribute('data-id', item.id);
         pieceEl.setAttribute('draggable', 'true');
         
+        const timeHtml = item.time ? `
+          <div class="puzzle-piece-time">
+            ${window.getIconSvg('clock', 11, 'time-icon')}
+            <span>${escapeHtml(item.time)}</span>
+          </div>
+        ` : '';
+
         pieceEl.innerHTML = `
           <div class="puzzle-piece-content">
-            <span class="puzzle-piece-text" id="text-${item.id}">${escapeHtml(item.text)}</span>
+            <div class="puzzle-piece-main-info">
+              ${timeHtml}
+              <span class="puzzle-piece-text" id="text-${item.id}">${escapeHtml(item.text)}</span>
+            </div>
             <div class="piece-actions">
               <button class="btn-piece-tool ${item.important ? 'active' : ''}" onclick="event.stopPropagation(); togglePieceImportant('${item.id}', '${dayKey}')" title="Importante">
                 ${window.getIconSvg('star', 12)}
@@ -779,6 +795,10 @@ window.showKanbanCreator = function(dayKey) {
   
   container.innerHTML = `
     <div class="kanban-inline-creator">
+      <div class="kanban-inline-time-container">
+        <span class="inline-time-icon">${window.getIconSvg('clock', 12)}</span>
+        <input type="time" class="kanban-inline-time-input" id="input-time-kanban-${dayKey}" title="Hora">
+      </div>
       <textarea class="kanban-inline-input" id="input-kanban-${dayKey}" placeholder="Nueva tarea para este día..." required autocomplete="off" rows="2"></textarea>
       <div class="kanban-inline-actions">
         <button class="btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="cancelKanbanCreator('${dayKey}')">Cancelar</button>
@@ -814,6 +834,7 @@ window.cancelKanbanCreator = function(dayKey) {
 
 window.saveKanbanPiece = function(dayKey) {
   const input = document.getElementById(`input-kanban-${dayKey}`);
+  const timeInput = document.getElementById(`input-time-kanban-${dayKey}`);
   if (!input) return;
   
   const text = input.value.trim();
@@ -822,9 +843,12 @@ window.saveKanbanPiece = function(dayKey) {
     return;
   }
   
+  const time = timeInput ? timeInput.value.trim() : '';
+  
   const newPiece = {
     id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     text: text,
+    time: time,
     important: false
   };
   
@@ -878,6 +902,20 @@ window.startEditPiece = function(itemId, themeId) {
   pieceFormThemeId.value = themeId || '';
   pieceTextInput.value = piece.text;
 
+  // Mostrar u ocultar el campo de hora según corresponda (solo para rutina semanal/calendario)
+  const isWeeklyRoutine = themeId && state.weeklyRoutine && state.weeklyRoutine[themeId];
+  const pieceTimeFormGroup = document.getElementById('pieceTimeFormGroup');
+  const pieceTimeInput = document.getElementById('pieceTimeInput');
+  if (pieceTimeFormGroup && pieceTimeInput) {
+    if (isWeeklyRoutine) {
+      pieceTimeFormGroup.style.display = 'block';
+      pieceTimeInput.value = piece.time || '';
+    } else {
+      pieceTimeFormGroup.style.display = 'none';
+      pieceTimeInput.value = '';
+    }
+  }
+
   pieceModalBackdrop.classList.add('active');
   
   setTimeout(() => {
@@ -891,8 +929,11 @@ function closePieceModal() {
 }
 
 // --- ELIMINAR PIEZA ---
-window.deletePiece = function(itemId, themeId) {
-  const confirmed = confirm("¿Estás seguro de que deseas eliminar esta pieza de rompecabezas definitivamente?");
+window.deletePiece = async function(itemId, themeId) {
+  const confirmed = await window.showCustomConfirm(
+    "Eliminar Pieza",
+    "¿Estás seguro de que deseas eliminar esta pieza de rompecabezas definitivamente?"
+  );
   if (!confirmed) return;
 
   if (!themeId || themeId === 'null') {
@@ -1019,11 +1060,14 @@ themeForm.addEventListener('submit', (e) => {
 });
 
 // --- ELIMINAR TEMÁTICA ---
-window.deleteTematica = function(themeId) {
+window.deleteTematica = async function(themeId) {
   const theme = state.tematicas.find(t => t.id === themeId);
   if (!theme) return;
 
-  const confirmed = confirm(`¿Estás seguro de que deseas eliminar la temática "${theme.title}"? \nTodas las piezas que tenía acopladas volverán automáticamente al Banco de Piezas para que no las pierdas.`);
+  const confirmed = await window.showCustomConfirm(
+    "Eliminar Temática",
+    `¿Estás seguro de que deseas eliminar la temática "${theme.title}"?\n\nTodas las piezas que tenía acopladas volverán automáticamente al Banco de Piezas para que no las pierdas.`
+  );
   if (!confirmed) return;
 
   // Devolver las piezas acopladas al banco de sueltas
@@ -1259,6 +1303,13 @@ pieceForm.addEventListener('submit', (e) => {
 
   if (piece) {
     piece.text = newText;
+    const isWeeklyRoutine = themeId && state.weeklyRoutine && state.weeklyRoutine[themeId];
+    if (isWeeklyRoutine) {
+      const pieceTimeInput = document.getElementById('pieceTimeInput');
+      if (pieceTimeInput) {
+        piece.time = pieceTimeInput.value || '';
+      }
+    }
     saveToLocalStorage();
     renderAll();
   }
@@ -1272,6 +1323,71 @@ function escapeHtml(str) {
   div.appendChild(document.createTextNode(str));
   return div.innerHTML;
 }
+
+// --- DIÁLOGOS PERSONALIZADOS (ALERT / CONFIRM) ---
+window.showCustomConfirm = function(title, message) {
+  return new Promise((resolve) => {
+    const titleEl = document.getElementById('customDialogTitle');
+    const msgEl = document.getElementById('customDialogMessage');
+    
+    titleEl.textContent = title;
+    msgEl.innerHTML = message.replace(/\n/g, '<br>');
+    
+    btnCancelCustomDialog.style.display = 'inline-flex';
+    customDialogBackdrop.classList.add('active');
+    
+    function cleanup(result) {
+      customDialogBackdrop.classList.remove('active');
+      btnConfirmCustomDialog.removeEventListener('click', onConfirm);
+      btnCancelCustomDialog.removeEventListener('click', onCancel);
+      btnCloseCustomDialog.removeEventListener('click', onCancel);
+      resolve(result);
+    }
+    
+    function onConfirm() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+    
+    btnConfirmCustomDialog.addEventListener('click', onConfirm);
+    btnCancelCustomDialog.addEventListener('click', onCancel);
+    btnCloseCustomDialog.addEventListener('click', onCancel);
+  });
+};
+
+window.showCustomAlert = function(title, message) {
+  return new Promise((resolve) => {
+    const titleEl = document.getElementById('customDialogTitle');
+    const msgEl = document.getElementById('customDialogMessage');
+    
+    titleEl.textContent = title;
+    msgEl.innerHTML = message.replace(/\n/g, '<br>');
+    
+    btnCancelCustomDialog.style.display = 'none';
+    customDialogBackdrop.classList.add('active');
+    
+    function cleanup() {
+      customDialogBackdrop.classList.remove('active');
+      btnConfirmCustomDialog.removeEventListener('click', onConfirm);
+      btnCloseCustomDialog.removeEventListener('click', onConfirm);
+      resolve();
+    }
+    
+    function onConfirm() { cleanup(); }
+    
+    btnConfirmCustomDialog.addEventListener('click', onConfirm);
+    btnCloseCustomDialog.addEventListener('click', onConfirm);
+  });
+};
+
+// Cerrar diálogo al hacer clic fuera del modal
+customDialogBackdrop.addEventListener('click', (e) => {
+  if (e.target === customDialogBackdrop) {
+    if (btnCancelCustomDialog.style.display !== 'none') {
+      btnCancelCustomDialog.click();
+    } else {
+      btnConfirmCustomDialog.click();
+    }
+  }
+});
 
 // --- GESTIÓN DE RESPALDOS MANUALES (JSON) ---
 function initBackupControls() {
@@ -1300,7 +1416,7 @@ function initBackupControls() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(evt) {
+    reader.onload = async function(evt) {
       try {
         const importedState = JSON.parse(evt.target.result);
         if (importedState && (importedState.tematicas || importedState.unassignedPieces)) {
@@ -1312,12 +1428,12 @@ function initBackupControls() {
           saveToLocalStorage();
           applyTheme(state.theme);
           renderAll();
-          alert("¡Respaldo local importado correctamente!");
+          await window.showCustomAlert("Importación Exitosa", "¡Respaldo local importado correctamente!");
         } else {
-          alert("El archivo JSON seleccionado no tiene un formato válido para Matrix Puzzle.");
+          await window.showCustomAlert("Error de Formato", "El archivo JSON seleccionado no tiene un formato válido para Matrix Puzzle.");
         }
       } catch (err) {
-        alert("Error al leer o procesar el archivo JSON: " + err.message);
+        await window.showCustomAlert("Error de Importación", "Error al leer o procesar el archivo JSON: " + err.message);
       }
     };
     reader.readAsText(file);

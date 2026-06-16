@@ -367,7 +367,7 @@ button, input, textarea, select {
 }
 
 .canvas-header {
-  padding: 2rem 3rem 1.5rem 3rem;
+  padding: 0.8rem 3rem;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-sidebar);
   backdrop-filter: blur(var(--blur-amount));
@@ -1179,10 +1179,10 @@ body[data-theme="mint"] .view-tab-btn.active {
 .kanban-board {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 1rem;
+  gap: 0.75rem; /* Un poco menos de espacio entre columnas para ganar espacio útil */
   height: 100%;
   align-items: start;
-  min-width: 1000px; /* Asegura que no se aplaste en pantallas estrechas */
+  min-width: 1200px; /* Aumentado para dar más ancho horizontal a las tareas */
 }
 
 /* Permitir scroll horizontal en el contenedor del tablero kanban si es necesario */
@@ -1194,10 +1194,9 @@ body[data-theme="mint"] .view-tab-btn.active {
   background: var(--bg-sidebar);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
-  padding: 1rem;
+  padding: 1rem 0.65rem; /* Reducido el padding horizontal para ganar espacio interno */
   display: flex;
   flex-direction: column;
-  max-height: 80vh;
   box-shadow: var(--shadow-main);
   backdrop-filter: blur(var(--blur-amount));
   -webkit-backdrop-filter: blur(var(--blur-amount));
@@ -1223,7 +1222,6 @@ body[data-theme="mint"] .view-tab-btn.active {
 
 .kanban-column-list {
   flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1246,7 +1244,7 @@ body[data-theme="mint"] .view-tab-btn.active {
   max-width: 100%;
   margin-bottom: 0px !important; /* El gap de la lista ya maneja el espaciado */
   cursor: grab;
-  padding: 0.6rem 1rem;
+  padding: 0.6rem 0.75rem !important; /* Más espacio horizontal para el texto */
   border-radius: var(--border-radius-sm);
   border-left: 1px solid var(--border-color) !important;
   border-right: 1px solid var(--border-color) !important;
@@ -1265,12 +1263,122 @@ body[data-theme="mint"] .view-tab-btn.active {
   border-right: 3px solid var(--accent-primary) !important;
 }
 
+/* Ajustes para texto horizontal y envoltura en la vista Kanban/Calendario */
+.kanban-column-list .puzzle-piece-content {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.puzzle-piece-main-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.puzzle-piece-time {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--accent-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0.95;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.1rem;
+}
+
+.puzzle-piece-time svg {
+  flex-shrink: 0;
+}
+
+.kanban-column-list .puzzle-piece-text {
+  padding-right: 0 !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  width: 100%;
+  display: block;
+}
+
+.kanban-column-list .piece-actions {
+  position: static !important;
+  transform: none !important;
+  align-self: flex-end;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  max-height: 0;
+  pointer-events: none;
+  overflow: hidden;
+  margin-top: 0;
+  padding: 0 4px !important;
+  border-width: 0 !important;
+  transition: opacity var(--transition-speed) ease, max-height var(--transition-speed) ease, margin-top var(--transition-speed) ease, padding var(--transition-speed) ease, border-width var(--transition-speed) ease;
+}
+
+.kanban-column-list .puzzle-piece:hover .piece-actions {
+  opacity: 1;
+  max-height: 34px;
+  pointer-events: auto;
+  margin-top: 0.5rem;
+  padding: 2px 4px !important;
+  border-width: 1px !important;
+}
+
+
 /* Creador Inline de Piezas en Kanban */
 .kanban-inline-creator {
   margin-top: 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 0.6rem;
+}
+
+.kanban-inline-time-container {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 0.3rem 0.5rem;
+  width: 100%;
+}
+
+.inline-time-icon {
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+}
+
+.kanban-inline-time-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: var(--font-family);
+  width: 100%;
+  outline: none;
+}
+
+.kanban-inline-time-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+body[data-theme="light"] .kanban-inline-time-input::-webkit-calendar-picker-indicator,
+body[data-theme="mint"] .kanban-inline-time-input::-webkit-calendar-picker-indicator {
+  filter: none;
 }
 
 .kanban-inline-input {
